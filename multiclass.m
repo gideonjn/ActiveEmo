@@ -1,8 +1,8 @@
 %% Load Data
 dataPath = 'C:\Research\';
-%dataPath = '/home/gideonjn/';
-dsName = 'Haberman';
-[allFeaturesInit, allLabelsInit, k, nKIt, nTest, nIt, sigma] = ...
+dataPath = '/home/gideonjn/';
+dsName = 'Optdigits';
+[allFeaturesInit, allLabelsInit, k, kIt, nTest, nIt, sigma] = ...
     importData(dataPath, dsName);
 nSamples = numel(allLabelsInit);
 
@@ -11,12 +11,12 @@ allIdLabels = allLabelsInit;
 labelToId = unique(allLabelsInit);
 nClasses = numel(labelToId);
 for i = 1:nClasses
-    allIdLabels(allIdLabels==i) = i-1;
+    allIdLabels(allLabelsInit==labelToId(i)) = i;
 end 
 
 %% Initialize Runs
 rng(0); % randomness control
-maxTime = 50;
+maxTime = 100;
 allAcc = zeros(nIt,maxTime);
 allUnAcc = zeros(nIt,maxTime);
 allDur = zeros(nIt,maxTime);
@@ -43,70 +43,39 @@ for itOn = 1:nIt
         T_features(i,:) = (T_features(i,:) - means)./stds;
     end
 
-    % Get clusters
-    Tr0_features = Tr_features(Tr_labels==0,:);
-    Tr1_features = Tr_features(Tr_labels==1,:);
-    ind0 = kmeans(Tr0_features, k, 'replicates', nKIt);
-    ind1 = kmeans(Tr1_features, k, 'replicates', nKIt);
-    L_features = [];
-    L_labels = [];
-
-    % Get middle point from each cluster
-    for i = 1:k
-        mid0 = mean(Tr0_features(ind0==i,:),1);
-        [maxVal maxInd] = max(sum((Tr0_features-repmat(mid0,size(Tr0_features,1),1)).^2,2));
-        indEx0 = maxInd(1);
-        L_features = vertcat(L_features, Tr0_features(indEx0,:));
-        L_labels = vertcat(L_labels, 0);
-        Tr0_features(indEx0,:) = [];
-        ind0(indEx0) = [];
-        
-        mid1 = mean(Tr1_features(ind1==i,:),1);
-        [maxVal maxInd] = max(sum((Tr1_features-repmat(mid1,size(Tr1_features,1),1)).^2,2));
-        indEx1 = maxInd(1);
-        L_features = vertcat(L_features, Tr1_features(indEx1,:));
-        L_labels = vertcat(L_labels, 1);
-        Tr1_features(indEx1,:) = [];
-        ind1(indEx1) = [];
-    end
+    % Get cluster ranges
+    fullRange = randperm(nTrain);
+    labeledRange = getLabeled(Tr_features, Tr_labels, k, kIt);
+    fullRange(labeledRange) = [];
+    unlabeledRange = fullRange;
     
     % Divide into labelled/unlabelled set
-    U_features = vertcat(Tr0_features, Tr1_features);
-    U_labels = vertcat(zeros(size(Tr0_features,1),1), ...
-        ones(size(Tr1_features,1),1));
-    rp = randperm(size(U_labels,1)); % random permutation of indices
-    U_features = U_features(rp,:);
-    U_labels = U_labels(rp);
-    rp = randperm(size(L_labels,1)); % random permutation of indices
-    L_features = L_features(rp,:);
-    L_labels = L_labels(rp);
+    L_features = Tr_features(labeledRange,:);
+    L_labels = Tr_labels(labeledRange);
+    U_features = Tr_features(unlabeledRange,:);
+    U_labels = Tr_labels(unlabeledRange);
 
     % Run tests
-    train_args = ['-t 0 -g ' num2str(sigma) ' -c 8192 -q -b 1'];
+    train_args = ['-t 0 -g ' num2str(sigma) ' -c 100 -q -b 1'];
     test_args = '-b 1 -q';
     nStar = 1;
     numUn = size(U_labels,1);
     for step = 1:maxTime
         tic;
-        % Assume all unlabeled are 0
-        assume0_features = vertcat(L_features, U_features);
-        assume0_labels = vertcat(L_labels, zeros(size(U_features,1),1));
-        model = libsvmtrain(assume0_labels, assume0_features, train_args);
-        [~, ~, prob0] = libsvmpredict(U_labels, U_features, model, test_args);
-        dist0 = log(prob0(:,1)./(1-prob0(:,1)));
-
-        % Assume all unlabeled are 1
-        assume1_features = vertcat(L_features, U_features);
-        assume1_labels = vertcat(L_labels, ones(size(U_features,1),1));
-        model = libsvmtrain(assume1_labels, assume1_features, train_args);
-        [~, ~, prob1] = libsvmpredict(U_labels, U_features, model, test_args);
-        dist1 = log(prob1(:,1)./(1-prob1(:,1)));
+        % Assume all unlabeled are each class
+        dist = zeros(numel(U_labels),nClasses);
+        assumeFeatures = vertcat(L_features, U_features);
+        for classOn = 1:nClasses
+            assumeLabels = vertcat(L_labels, ones(size(U_features,1),1).*classOn);
+            model = libsvmtrain(assumeLabels, assumeFeatures, train_args);
+            [~, ~, probSVM] = libsvmpredict(U_labels, U_features, model, test_args);
+            dist(:,classOn) = log(probSVM(:,1)./(1-probSVM(:,1)));
+        end
 
         % Calculate Inconsistency
-        sumDist = abs(dist0) + abs(dist1);
-        pr0 = abs(dist0) ./ sumDist;
-        pr1 = abs(dist1) ./ sumDist;
-        incon = -(pr0.*log2(pr0))-(pr1.*log2(pr1));
+        sumDist = sum(abs(dist),2);
+        prob = abs(dist) ./ repmat(sumDist,1,nClasses);
+        incon = -sum(prob.*log2(prob),2);
 
         % Select nStar highest inconsistency points
         [order maxInd] = sort(incon, 'descend');
@@ -120,8 +89,9 @@ for itOn = 1:nIt
         model = libsvmtrain(L_labels, L_features, train_args);
         [y_hat, Acc, ~] = libsvmpredict(T_labels, T_features, model, test_args);
         allAcc(itOn,step) = Acc(1);
-        cMtrx = confusionmat(T_labels, y_hat);
-        UnAcc = ((cMtrx(1,1)/sum(cMtrx(1,:)))+(cMtrx(2,2)/sum(cMtrx(2,:))))./2;
+        cMtrx = confusionmat(T_labels, y_hat, 'order', 1:nClasses);
+        cPct = cMtrx./repmat(sum(cMtrx,2),1,nClasses);
+        UnAcc = mean(sum(eye(nClasses,nClasses).*cPct));        
         allUnAcc(itOn,step) = UnAcc;
         fprintf('Iteration %d Step %d Unweighted Accuracy = %.4f%% Weighted Accuracy = %.4f%%\n', ...
             itOn, step, UnAcc*100, Acc(1));

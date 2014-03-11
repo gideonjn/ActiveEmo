@@ -32,17 +32,37 @@ switch name
         features = data(:,1:8);
         labels = data(:,9);
     case 'Ecoli'
-        k = 5;
+        k = 3;
         nKIt = 100;
         nTest = 67;
         nIt = 50;
         sigma = 1;
+        name = [path 'Data/ActiveEmo/Ecoli/ecoli.data'];
+        [features labels] = importTextData(name, 2:8, 9);
+        nClasses = max(labels);
+        nums = hist(labels,1:nClasses);
+        for i = 1:nClasses
+            if nums(i) < k*3
+                features(labels==i,:) = [];
+                labels(labels==i,:) = [];
+            end
+        end
     case 'Yeast'
         k = 3;
         nKIt = 100;
         nTest = 297;
         nIt = 50;
         sigma = 1;
+        name = [path 'Data/ActiveEmo/Yeast/yeast.data'];
+        [features labels] = importTextData(name, 2:9, 10);
+        nClasses = max(labels);
+        nums = hist(labels,1:nClasses);
+        for i = 1:nClasses
+            if nums(i) < k*3
+                features(labels==i,:) = [];
+                labels(labels==i,:) = [];
+            end
+        end
     case 'Spam'
         k = 10;
         nKIt = 1000;
@@ -58,6 +78,10 @@ switch name
         nTest = 1797;
         nIt = 10;
         sigma = 32;
+        dataTes = csvread([path 'Data/ActiveEmo/Optdigits/optdigits.tes']);
+        dataTra = csvread([path 'Data/ActiveEmo/Optdigits/optdigits.tra']);
+        features = vertcat(dataTes(:,1:64), dataTra(:,1:64));
+        labels = vertcat(dataTes(:,65), dataTra(:,65));
     case 'EmoDB'
         k = 5;
         nKIt = 100;
@@ -102,19 +126,6 @@ switch name
         
         nTest = ceil(numel(labels)/5);
 end
-
-% Convert label strings into integers
-% allLabels = zeros(nSamples,1);
-% labelNames = unique(labelStr);
-% nLabelNames = size(labelNames,1);
-% for i=1:nSamples
-%     for j=1:nLabelNames
-%         if strcmp(labelNames{j}, labelStr{i})
-%             allLabels(i) = j;
-%             continue;
-%         end
-%     end
-% end
 
 end
 
