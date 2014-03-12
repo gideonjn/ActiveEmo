@@ -82,49 +82,6 @@ switch name
         dataTra = csvread([path 'Data/ActiveEmo/Optdigits/optdigits.tra']);
         features = vertcat(dataTes(:,1:64), dataTra(:,1:64));
         labels = vertcat(dataTes(:,65), dataTra(:,65));
-    case 'EmoDB'
-        k = 5;
-        nKIt = 100;
-        nIt = 10;
-        sigma = 0.125;
-        data = importdata([path 'emote/Features/EmoDB_labels.csv']);
-        labels = data(2,:)';
-        speakers = data(1,:)';
-        data = importdata([path 'emote/Features/EmoDB_features.csv']);
-        features = data.data(:,3:end);
-
-        % EXC to HAP
-        labels(labels==6)=5;
-
-        % Remove all but HAP, SAD, ANG, NEU
-        ind = find(labels==5 | labels==3);
-        labels = labels(ind,:);
-        speakers = speakers(ind,:);
-        features = features(ind,:);
-
-        nTest = numel(labels)/5;
-
-        uniqueSpeakers = unique(labels);
-        meanVals = features;
-        stdVals = features;
-        for i = 1:numel(uniqueSpeakers)
-            sOn = uniqueSpeakers(i);
-            ind = find(labels==sOn);
-            meanVals(ind,:)= repmat(mean(features(ind,:)),size(ind,1),1);
-            stdVals(ind,:) = repmat(std(features(ind,:)),size(ind,1),1);
-        end
-        features = (features - meanVals) ./ stdVals;
-
-        nF = size(features,2);
-        gain = zeros(1,nF);
-        for fOn = 1:nF
-            gain(fOn) = calcContGain(features(:,fOn), labels);
-        end
-        [sG ind] = sort(gain, 'descend');
-        featureRank = ind;
-        features = features(:,featureRank(1:20));
-        
-        nTest = ceil(numel(labels)/5);
 end
 
 end

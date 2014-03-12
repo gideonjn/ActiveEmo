@@ -82,7 +82,7 @@ for itOn = 1:nIt
     L_labels = L_labels(rp);
 
     % Run tests
-    train_args = ['-t 0 -g ' num2str(sigma) ' -c 8192 -q -b 1'];
+    train_args = ['-t 2 -g ' num2str(sigma) ' -c 8192 -q -b 1'];
     test_args = '-b 1 -q';
     nStar = 1;
     numUn = size(U_labels,1);

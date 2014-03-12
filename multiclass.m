@@ -1,10 +1,11 @@
 %% Load Data
-dataPath = 'C:\Research\';
+%dataPath = 'C:\Research\';
 dataPath = '/home/gideonjn/';
-dsName = 'Optdigits';
+dsName = 'Spam';
 [allFeaturesInit, allLabelsInit, k, kIt, nTest, nIt, sigma] = ...
     importData(dataPath, dsName);
 nSamples = numel(allLabelsInit);
+fprintf('Starting run with dataset %s\n', dsName)
 
 %% Determine uniques
 allIdLabels = allLabelsInit;
@@ -56,7 +57,7 @@ for itOn = 1:nIt
     U_labels = Tr_labels(unlabeledRange);
 
     % Run tests
-    train_args = ['-t 0 -g ' num2str(sigma) ' -c 100 -q -b 1'];
+    train_args = ['-t 2 -g ' num2str(sigma) ' -c 100 -q -b 1'];
     test_args = '-b 1 -q';
     nStar = 1;
     numUn = size(U_labels,1);
